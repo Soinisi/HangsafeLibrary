@@ -8,7 +8,7 @@ import time
 
 class HangsafeLibrary:
 
-    def with_timeout(self, kw, *args, timeout: int = 10, system_exit: bool = False):
+    def with_timeout(self, kw, *args, timeout: float = 10, system_exit: bool = False):
         kw_tuple = (kw, *args)
         kw_thread = ThreadWithException(BuiltIn().run_keyword, *kw_tuple)
         kw_thread.name = 'kw running thread'
