@@ -8,6 +8,7 @@ There could be some unseen problems with this so use is at your own risk. *Cauti
 With Timeout    Example Keyword    
 With Timeout    Example Keyword With Arguments    *kw_args    timeout=30
 With Timeout    Example Keyword    system_exit=True
+${return value}=    With Timeout    Example Keyword
 ```
 
 
