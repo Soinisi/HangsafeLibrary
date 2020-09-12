@@ -8,7 +8,7 @@ import time
 
 class HangsafeLibrary:
 
-    def with_timeout(self, kw, *args, timeout: int = 10):
+    def with_timeout(self, kw, *args, timeout: int = 10, system_exit: bool = False):
         kw_tuple = (kw, *args)
         kw_thread = ThreadWithException(BuiltIn().run_keyword, *kw_tuple)
         kw_thread.name = 'kw running thread'
@@ -16,7 +16,9 @@ class HangsafeLibrary:
         kw_thread.join(timeout)
         
         if kw_thread.is_alive():
-            kw_thread.raise_exception(TimeoutError)
+            exc = TimeoutError if not system_exit else SystemExit
+            
+            kw_thread.raise_exception(exc)
             #time for the main thread running robot to recover from thread exception
             time.sleep(5)
             raise TimeoutError('Keyword timeout exceeded!')
@@ -70,24 +72,5 @@ class ThreadWithException(threading.Thread):
     
 
 
-    def terminate(self):
-        self.raise_exception(SystemExit)
 
 
-
-def test_kw():
-    # target function of the thread class 
-        try: 
-            while True: 
-                print('running thread!') 
-        finally: 
-            print('ended') 
-
-
-
-if __name__ == "__main__":
-    t = ThreadWithException(test_kw)
-    t.start()
-    t.join(5)
-    t.raise_exception(TimeoutError)
-    
