@@ -4,6 +4,7 @@ import _thread as thread
 import threading
 from robot.libraries.BuiltIn import BuiltIn
 import time
+import sys
 
 
 class HangsafeLibrary:
@@ -12,6 +13,7 @@ class HangsafeLibrary:
         kw_tuple = (kw, *args)
         kw_thread = ThreadWithException(BuiltIn().run_keyword, *kw_tuple)
         kw_thread.name = 'kw running thread'
+        kw_thread.daemon = True
         kw_thread.start()
         kw_thread.join(timeout)
         
@@ -23,6 +25,42 @@ class HangsafeLibrary:
             time.sleep(5)
             raise TimeoutError('Keyword timeout exceeded!')
         
+        return kw_thread.return_val
+
+
+
+    def with_hang_detect(self, 
+                         kw, 
+                         *args, 
+                         seconds_hung: float = 15, 
+                         interval: float = 1, 
+                         system_exit: bool = False):
+        
+        exc = TimeoutError if not system_exit else SystemExit
+        kw_tuple = (kw, *args)
+        kw_thread = ThreadWithException(BuiltIn().run_keyword, *kw_tuple)
+        kw_thread.name = 'kw running thread'
+        kw_thread.daemon = True
+        kw_thread.start()
+        kw_thread.join(1)
+
+        first_frame = kw_thread.get_own_current_frame()
+        first_time = time.time()
+        while kw_thread.is_alive():
+            time.sleep(interval)
+            second_frame = kw_thread.get_own_current_frame()
+            second_time = time.time()
+            
+            if first_frame == second_frame:
+                if (second_time - first_time) > seconds_hung:
+                    kw_thread.raise_exception(exc)
+                    time.sleep(5)
+                    raise TimeoutError('Keyword hung time exceeded!')
+                    
+            else:
+                first_frame = second_frame
+                first_time = second_time 
+
         return kw_thread.return_val
 
 
@@ -56,6 +94,13 @@ class ThreadWithException(threading.Thread):
         
         raise AssertionError("Thread id not found!")
     
+
+
+    def get_own_current_frame(self):
+        tid = self._get_own_tid()
+        return sys._current_frames()[int(tid)]
+
+
 
     def _async_raise(self, tid, exception_type):
         res = ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(tid), ctypes.py_object(exception_type))
