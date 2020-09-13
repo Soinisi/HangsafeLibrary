@@ -32,7 +32,7 @@ class HangsafeLibrary:
     def with_hang_detect(self, 
                          kw, 
                          *args, 
-                         seconds_hung: float = 15, 
+                         max_secs_hung: float = 15, 
                          interval: float = 1, 
                          system_exit: bool = False):
         
@@ -52,7 +52,7 @@ class HangsafeLibrary:
             second_time = time.time()
             
             if first_frame == second_frame:
-                if (second_time - first_time) > seconds_hung:
+                if (second_time - first_time) > max_secs_hung:
                     kw_thread.raise_exception(exc)
                     time.sleep(5)
                     raise TimeoutError('Keyword hung time exceeded!')
