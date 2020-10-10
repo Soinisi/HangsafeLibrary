@@ -5,6 +5,7 @@ import threading
 from robot.libraries.BuiltIn import BuiltIn
 import time
 import sys
+import functools
 
 
 class HangsafeLibrary:
@@ -46,20 +47,12 @@ class HangsafeLibrary:
 
         first_frame = kw_thread.get_own_current_frame()
         first_time = time.time()
-        while kw_thread.is_alive():
-            time.sleep(interval)
-            second_frame = kw_thread.get_own_current_frame()
-            second_time = time.time()
-            
-            if first_frame == second_frame:
-                if (second_time - first_time) > max_secs_hung:
-                    kw_thread.raise_exception(exc)
-                    time.sleep(5)
-                    raise TimeoutError('Keyword hung time exceeded!')
-                    
-            else:
-                first_frame = second_frame
-                first_time = second_time 
+        _loop_frame_hang_check(kw_thread, 
+                               exc, 
+                               max_secs_hung, 
+                               interval, 
+                               first_frame, 
+                               first_time)
 
         return kw_thread.return_val
 
@@ -97,9 +90,11 @@ class ThreadWithException(threading.Thread):
 
 
     def get_own_current_frame(self):
-        tid = self._get_own_tid()
-        return sys._current_frames()[int(tid)]
-
+        try:
+            tid = self._get_own_tid()
+            return sys._current_frames()[int(tid)]
+        except threading.ThreadError:
+            return None
 
 
     def _async_raise(self, tid, exception_type):
@@ -118,4 +113,72 @@ class ThreadWithException(threading.Thread):
 
 
 
+def with_timeout_decorator(timeout: float = 10, system_exit: bool = False):
+    def inner_deco(func):
+        @functools.wraps(func)
+        def wrapper(*args):
+            kw_thread = ThreadWithException(func, *args)
+            kw_thread.name = 'kw func running thread'
+            kw_thread.daemon = True
+            kw_thread.start()
+            kw_thread.join(timeout)
+            
+            if kw_thread.is_alive():
+                exc = TimeoutError if not system_exit else SystemExit
+                
+                kw_thread.raise_exception(exc)
+                #time for the main thread running robot to recover from thread exception
+                time.sleep(5)
+                raise TimeoutError('Keyword timeout exceeded!')
+            
+            return kw_thread.return_val
+        return wrapper
+    return inner_deco
+
+
+
+def with_hang_detect_decorator(max_secs_hung: float = 15, interval: float = 1, system_exit: bool = False):
+    def inner_deco(func):
+        @functools.wraps(func)
+        def wrapper(*args):
+            exc = TimeoutError if not system_exit else SystemExit
+            kw_thread = ThreadWithException(func, *args)
+            kw_thread.name = 'kw func running thread'
+            kw_thread.daemon = True
+            kw_thread.start()
+            kw_thread.join(1)
+
+            first_frame = kw_thread.get_own_current_frame()
+            first_time = time.time()
+            _loop_frame_hang_check(kw_thread, 
+                                   exc, 
+                                   max_secs_hung, 
+                                   interval, 
+                                   first_frame, 
+                                   first_time)
+
+            return kw_thread.return_val
+        return wrapper
+    return inner_deco
+        
+
+
+
+#HELPERS------------------------------------------------------------------------------
+def _loop_frame_hang_check(kw_thread, exc, max_secs_hung, interval, first_frame, first_time):
+    while kw_thread.is_alive():
+        time.sleep(interval)
+        
+        second_frame = kw_thread.get_own_current_frame()
+        if not second_frame: break
+        second_time = time.time()
+        
+        if first_frame == second_frame:
+            if (second_time - first_time) > max_secs_hung:
+                kw_thread.raise_exception(exc)
+                time.sleep(5)
+                raise TimeoutError('Keyword hung time exceeded!')       
+        else:
+            first_frame = second_frame
+            first_time = second_time 
 

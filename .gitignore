@@ -1,2 +1,4 @@
 __pycache__
-robotframework_HangsafeLibrary.egg-info/
+robotframework_hangsafelibrary.egg-info/
+.vscode
+.eggs
